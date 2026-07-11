@@ -16,6 +16,65 @@ const supabase = createClient(
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
+// ── NEW: generate bill directly from frontend order data (no DB lookup needed) ──
+app.post("/api/bill/generate", async (req, res) => {
+  const {
+    invoiceNumber,
+    tableNumber,
+    items,
+    subtotal,
+    cgst,
+    sgst,
+    total,
+    paymentMethod,
+    phone,
+    email,
+  } = req.body;
+
+  if (!invoiceNumber || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "invoiceNumber and items are required" });
+  }
+
+  try {
+    const billData = {
+      invoiceNumber,
+      restaurantName: "Shri Balaji Dhaba",
+      restaurantAddress: "Alambagh, Lucknow",
+      restaurantPhone: "7310009999",
+      restaurantGstin: undefined as string | undefined,
+      restaurantLogoUrl: undefined as string | undefined,
+      tableName: `Table ${tableNumber}`,
+      customerName: undefined as string | undefined,
+      orderNumber: parseInt(String(invoiceNumber).replace("SBD-", ""), 10),
+      lineItems: (items as any[]).map((i) => ({
+        name: i.isHalf ? `${i.name} (Half)` : i.name,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        modifiers: [] as string[],
+        lineTotal: i.lineTotal,
+      })),
+      subtotal,
+      discountAmount: 0,
+      cgstAmount: cgst,
+      sgstAmount: sgst,
+      serviceCharge: 0,
+      totalAmount: total,
+      paymentMethod: paymentMethod ?? "CASH",
+      paidAt: new Date().toISOString(),
+      currencyCode: "INR",
+      customerPhone: phone || undefined,
+      customerEmail: email || undefined,
+    };
+
+    const links = await generateBillLinks(billData);
+    return res.json({ success: true, data: links });
+  } catch (err: any) {
+    console.error("[GenerateRoute] Error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── EXISTING: send bill by looking up a saved invoice from Supabase ──
 app.post("/api/bill/send-free", async (req, res) => {
   const { invoiceId, overridePhone, overrideEmail } = req.body as {
     invoiceId: string;
