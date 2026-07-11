@@ -55,11 +55,18 @@ export interface BillLinks {
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function fmt(amount: number, currency = "INR"): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency,
+  // Formats the number with proper Indian locale grouping commas (e.g., 1,50,000.00)
+  const formattedNumber = new Intl.NumberFormat("en-IN", {
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
+
+  // Safely prepend 'Rs.' for INR to avoid WinAnsi PDF encoding crashes
+  if (currency === "INR") {
+    return `Rs. ${formattedNumber}`;
+  }
+
+  return `${currency} ${formattedNumber}`;
 }
 
 function fmtDate(iso: string): string {
